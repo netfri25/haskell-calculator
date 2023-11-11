@@ -2,7 +2,7 @@
 simple calculator with operator precedence and brackets support implemented in haskell
 
 ### quickstart
-make sure you have ```ghc``` and ```rlwrap``` installed (they can be cound in apt).
+make sure you have ```ghc``` and ```rlwrap``` installed (they can be found in apt).
 
 #### compiling
 ```sh
