@@ -1,26 +1,32 @@
 module Main where
 
-import Generator
 import Lexer
+import Ast
 import Eval
 
-import System.Exit (exitFailure, exitSuccess)
-import Control.Monad (when, forever)
-import Data.Maybe (isNothing, fromJust)
-import GHC.IO.Handle
-import GHC.IO.StdHandles
+import System.Exit (exitSuccess)
+import Control.Monad (forever, when, (>=>))
+import System.IO (stdout, stdin, BufferMode (..), hSetBuffering)
 
 main :: IO ()
-main = forever $ do
+main = do
   hSetBuffering stdin LineBuffering
-  inp <- getLine
-  when (inp == "exit" || inp == "quit") exitSuccess
-  case lexer inp of
-    Nothing -> putStrLn "[LEXING ERROR] unknown character found in input"
-    Just tkns ->
-      case generator tkns of
-        Nothing -> putStrLn "[PARSING ERROR] possibly unmatced brackets or syntax error"
-        Just node ->
-          case eval node of
-            Nothing -> putStrLn "[EVAL ERROR] unable to evaluate the expression"
-            Just val -> print val
+  hSetBuffering stdout NoBuffering
+  forever $ do
+    putStr "> "
+    inp <- getLine
+    when (inp == "exit" || inp == "quit") exitSuccess
+    case evaluateLine inp of
+      Left err -> putStrLn $ "[ERROR] " ++ err
+      Right value -> print value
+
+lexingError = "Unknown character found in input"
+parsingError = "Syntax error"
+evalError = "Unable to evaluate the expression"
+
+evaluateLine :: String -> Either String Float
+evaluateLine = err lexingError . lexer >=> err parsingError . ast >=> err evalError . eval
+
+err :: e -> Maybe a -> Either e a
+err err Nothing = Left err
+err _  (Just x) = Right x

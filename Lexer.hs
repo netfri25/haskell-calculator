@@ -3,15 +3,15 @@ module Lexer where
 import Token
 import Parser
 
-import Data.Char (isSpace)
+import Data.Char (isSpace, isDigit)
 import Data.Kind (Type)
-import Control.Monad (join)
-import Control.Applicative (Alternative(..))
+import Control.Monad (join, mfilter)
+import Control.Applicative (asum, Alternative(..))
+import Text.Read (readMaybe)
 
 type Lexer :: Type -> Type
-type Lexer = Parser Char
+type Lexer = Parser [Char]
 
--- | whitespace lexer
 ws :: Lexer String
 ws = spanP isSpace
 
@@ -23,33 +23,22 @@ operators =
   , ('/', Div)
   ]
 
--- | lexer for the operator token
 tknOperatorL :: Lexer Token
-tknOperatorL = unwrap $ (TknOperator <$>) . flip lookup operators <$> ifP (`elem` map fst operators)
+tknOperatorL = TknOperator <$> (nextP >>= lift . flip lookup operators)
 
--- | lexer for the number token
+-- TODO: add sign
 tknNumberL :: Lexer Token
-tknNumberL = TknNumber . read <$> nonEmpty (spanP (`elem` ['0'..'9']))
+tknNumberL = TknNumber <$> (mfilter (not . null) (spanP valid) >>= lift . readMaybe)
+  where valid c = isDigit c || elem c ['.', 'e', 'E']
 
 tknBracketL :: Lexer Token
 tknBracketL = lbracket <|> rbracket
   where
-    lbracket, rbracket :: Lexer Token
-    lbracket = LBracket <$ ifP (=='(')
-    rbracket = RBracket <$ ifP (==')')
+    lbracket = TknLBracket <$ ifP (=='(')
+    rbracket = TknRBracket <$ ifP (==')')
 
--- | lexer for every possible token
 tokenL :: Lexer Token
-tokenL = foldl1 (<|>)
-  [ tknOperatorL
-  , tknNumberL
-  , tknBracketL
-  ]
+tokenL = asum [tknOperatorL, tknNumberL, tknBracketL]
 
--- | the actual lexer
 lexer :: String -> Maybe [Token]
-lexer "" = Just []
-lexer inp =
-  case runParser (ws *> tokenL) inp of
-    Nothing -> Nothing
-    Just (x, inp') -> (x:) <$> lexer inp'
+lexer = fmap fst . mfilter (null . snd) . runParser (some $ ws *> tokenL <* ws)
